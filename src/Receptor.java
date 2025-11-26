@@ -70,8 +70,16 @@ public class Receptor {
                 byte[] numeros = pedido.getNumeros();
                 System.out.printf("[R] Pedido recebido de %s com %d elementos%n", ip, numeros.length);
 
-                // Ordenação paralela interna neste receptor
+                // LOG — 20 primeiros números ou todos
+                System.out.print("[R] Conteúdo recebido: ");
+                imprimirArrayLimitado(numeros);
+
+                // Ordenação paralela
                 byte[] ordenado = ordenarParalelo(numeros);
+
+                // LOG — 20 primeiros números do retorno
+                System.out.print("[R] Conteúdo retornado: ");
+                imprimirArrayLimitado(ordenado);
 
                 Resposta resposta = new Resposta(ordenado);
                 transmissor.writeObject(resposta);
@@ -90,12 +98,23 @@ public class Receptor {
         }
     }
 
+    //imprime até 20 elementos
+    private static void imprimirArrayLimitado(byte[] array) {
+        int limite = Math.min(array.length, 20);
+        System.out.print("[");
+        for (int i = 0; i < limite; i++) {
+            System.out.print(array[i]);
+            if (i < limite - 1) System.out.print(", ");
+        }
+        if (array.length > 20) System.out.print(" ... (" + array.length + " no total)");
+        System.out.println("]");
+    }
+
     // Divide o vetor em partes e usa várias threads para ordenar com merge sort
     private static byte[] ordenarParalelo(byte[] numeros) {
         int n = numeros.length;
         int nProc = Runtime.getRuntime().availableProcessors();
         if (nProc < 2 || n < 2 * nProc) {
-            // Pequeno demais para paralelizar – faz sequencial
             byte[] copia = numeros.clone();
             mergeSort(copia, 0, copia.length - 1);
             return copia;
@@ -117,7 +136,6 @@ public class Receptor {
             inicio += tam;
         }
 
-        // Ordena cada parte em paralelo (in place no mesmo array)
         for (int i = 0; i < partes; i++) {
             final int idx = i;
             threads[i] = new Thread(() -> mergeSort(numeros, ini[idx], fim[idx]));
@@ -125,15 +143,12 @@ public class Receptor {
         }
 
         try {
-            for (Thread t : threads) {
-                t.join();
-            }
+            for (Thread t : threads) t.join();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             System.err.println("[R] join interrompido");
         }
 
-        // Agora faz merges sucessivos até sobrar um único segmento ordenado
         int segmentos = partes;
         while (segmentos > 1) {
             int novoSegmentos = 0;
@@ -151,13 +166,11 @@ public class Receptor {
             segmentos = novoSegmentos;
         }
 
-        // copia final (poderia devolver o próprio array também)
         byte[] resultado = new byte[n];
         System.arraycopy(numeros, 0, resultado, 0, n);
         return resultado;
     }
 
-    // Merge sort recursivo tradicional
     private static void mergeSort(byte[] v, int ini, int fim) {
         if (ini >= fim) return;
         int meio = (ini + fim) / 2;
